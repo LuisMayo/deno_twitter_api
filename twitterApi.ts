@@ -90,23 +90,7 @@ export class TwitterApi {
   async request( method: "GET" | "POST", url: string, options?: Options): Promise<Response> {
     if(options == null) options = {};
 
-    let oauth_nonce: string = this.generateNonce();
-    let oauth_timestamp: string = this.getCurrentTimestamp();
-    let oauth_signature: string = this.createSignature(
-      oauth_nonce, 
-      oauth_timestamp, 
-      {
-        options,
-        method,
-        url
-      });
-
-    let authHeader: string = this.createAuthHeader(oauth_nonce, oauth_timestamp, oauth_signature);
-
-    let headers = new Headers({
-      "Authorization": authHeader,
-      "Content-Type": "applicaton/json"
-    });
+    let headers = this.generateHeader(options, method, url);
 
     let request = new Request(this.baseUrl + url + "?" + new URLSearchParams(options).toString(), {
       method,
@@ -120,6 +104,29 @@ export class TwitterApi {
 
     return await fetch(request);
     // return setTimeout(() => {}, 1000);
+  }
+
+
+
+  async uploadVideo(video: ArrayBuffer, mime: string) {
+    const options = {
+      command: 'INIT',
+      total_bytes: video.byteLength.toString(),
+      media_type: mime
+    };
+    let headers = this.generateHeader(options, 'POST', 'https://upload.twitter.com/1.1/media/upload.json');
+
+    let request = new Request('https://upload.twitter.com/1.1/media/upload.json' + "?" + new URLSearchParams(options).toString(), {
+      method: 'POST',
+      headers,
+    });
+
+    let response = await fetch(request);
+    if (response.status < 200 || response.status >299) {
+      throw new Error('Error while initiating upload');
+    }
+
+    
   }
 
   private createSignature(
@@ -182,6 +189,32 @@ export class TwitterApi {
       + "=\""
       + this.percentEncode(value)
       + "\"";
+  }
+
+  private generateHeader(options: Options, method: 'GET' | 'POST', url: string) {
+    let authHeader: string = this.generateOauthHeader(options, method, url);
+
+    let headers = new Headers({
+      "Authorization": authHeader,
+      "Content-Type": "applicaton/json"
+    });
+    return headers;
+  }
+
+  private generateOauthHeader(options: Options, method: 'GET' | 'POST', url: string) {
+    let oauth_nonce: string = this.generateNonce();
+    let oauth_timestamp: string = this.getCurrentTimestamp();
+    let oauth_signature: string = this.createSignature(
+      oauth_nonce,
+      oauth_timestamp,
+      {
+        options,
+        method,
+        url
+      });
+
+    let authHeader: string = this.createAuthHeader(oauth_nonce, oauth_timestamp, oauth_signature);
+    return authHeader;
   }
 
   private percentEncode(val: string): string {
